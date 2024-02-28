@@ -45,10 +45,10 @@ const { Provider, useDispatch, useSelector } =
       }
     }
 
-    produceNextMsg(
+    async produceNextMsg(
       _model: CounterModel,
       _msg: CounterMsg
-    ): CounterMsg | undefined {
+    ): Promise<CounterMsg | undefined> {
       return undefined;
     }
   })();

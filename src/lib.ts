@@ -6,7 +6,7 @@ export type Unsubscribe = () => void;
 
 export type InitialCmd<T, U> = (model: T) => U | undefined;
 
-export type Cmd<T, U> = (model: T, msg: U) => U | undefined;
+export type Cmd<T, U> = (model: T, msg: U) => Promise<U | undefined>;
 
 export class Store<T, U> {
   private model: T;
@@ -15,7 +15,7 @@ export class Store<T, U> {
   constructor(
     init: [T, InitialCmd<T, U>?],
     private produceNewModel: (model: T, msg: U) => T,
-    private produceNextMsg: Cmd<T, U> = () => undefined
+    private produceNextMsg: Cmd<T, U> = async () => undefined
   ) {
     const [initialModel, initialCmd] = init;
     this.model = initialModel;
@@ -35,10 +35,15 @@ export class Store<T, U> {
   dispatch(msg: U): void {
     const newModel = this.produceNewModel(this.model, msg);
     this.model = newModel;
-    const nextMsg = this.produceNextMsg(newModel, msg);
-    if (nextMsg) {
-      this.dispatch(nextMsg);
-    }
+    this.produceNextMsg(newModel, msg)
+      .then((nextMsg) => {
+        if (nextMsg) {
+          this.dispatch(nextMsg);
+        }
+      })
+      .catch((e) => {
+        console.error(e);
+      });
     this.notify();
   }
 
@@ -121,7 +126,7 @@ export abstract class StoreHelper<T, U> {
   abstract provideInitialModel(): T;
   abstract provideInitialCmd(): InitialCmd<T, U> | undefined;
   abstract produceNewModel(model: T, msg: U): T;
-  abstract produceNextMsg(model: T, msg: U): U | undefined;
+  abstract produceNextMsg(model: T, msg: U): Promise<U | undefined>;
 }
 
 export abstract class ComponentStoreHelper<T, U> {
@@ -145,5 +150,5 @@ export abstract class ComponentStoreHelper<T, U> {
   abstract provideInitialModel(): T;
   abstract provideInitialCmd(): InitialCmd<T, U> | undefined;
   abstract produceNewModel(model: T, msg: U): T;
-  abstract produceNextMsg(model: T, msg: U): U | undefined;
+  abstract produceNextMsg(model: T, msg: U): Promise<U | undefined>;
 }
