@@ -68,6 +68,11 @@ function App() {
       Provider,
       { onRerender: () => ({ type: "Sync", payload: count } as const) },
       h(MyCounter)
+    ),
+    h(
+      Provider,
+      { onRerender: () => ({ type: "Sync", payload: count } as const) },
+      h(MyCounter)
     )
   );
 }
