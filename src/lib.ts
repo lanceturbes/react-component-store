@@ -122,14 +122,14 @@ export abstract class StoreHelper<T, U> {
 
   constructor() {
     this.store = new Store(
-      [this.provideInitialModel(), this.provideInitialCmd()],
+      [this.provideInitialModel(), this.provideInitialCmd],
       this.produceNewModel,
       this.produceNextMsg
     );
   }
 
   abstract provideInitialModel(): T;
-  abstract provideInitialCmd(): InitialCmd<T, U> | undefined;
+  abstract provideInitialCmd(model: T): Promise<U | undefined>;
   abstract produceNewModel(model: T, msg: U): T;
   abstract produceNextMsg(model: T, msg: U): Promise<U | undefined>;
 }
@@ -142,7 +142,7 @@ export abstract class ComponentStoreHelper<T, U> {
   constructor() {
     const store = new ComponentStore(() => {
       return new Store(
-        [this.provideInitialModel(), this.provideInitialCmd()],
+        [this.provideInitialModel(), this.provideInitialCmd],
         this.produceNewModel,
         this.produceNextMsg
       );
@@ -153,7 +153,7 @@ export abstract class ComponentStoreHelper<T, U> {
   }
 
   abstract provideInitialModel(): T;
-  abstract provideInitialCmd(): InitialCmd<T, U> | undefined;
+  abstract provideInitialCmd(model: T): Promise<U | undefined>;
   abstract produceNewModel(model: T, msg: U): T;
   abstract produceNextMsg(model: T, msg: U): Promise<U | undefined>;
 }
