@@ -15,8 +15,7 @@ export class Store<T, U> {
   constructor(
     init: [T, InitialCmd<T, U>?],
     private produceNewModel: (model: T, msg: U) => T,
-    private produceNextMsg: Cmd<T, U> = () => undefined,
-    private subscriptions: ((model: T) => void)[] = []
+    private produceNextMsg: Cmd<T, U> = () => undefined
   ) {
     const [initialModel, initialCmd] = init;
     this.model = initialModel;
@@ -24,7 +23,6 @@ export class Store<T, U> {
       return;
     }
     const initialMsg = initialCmd(initialModel);
-    this.registerSubscriptions();
     if (initialMsg) {
       this.dispatch(initialMsg);
     }
@@ -44,11 +42,6 @@ export class Store<T, U> {
     this.notify();
   }
 
-  subscribeTo(subscription: (model: T) => void) {
-    this.subscriptions.push(subscription);
-    subscription(this.getModel());
-  }
-
   addListener(listener: Listener): Unsubscribe {
     this.listeners.add(listener);
     return () => {
@@ -61,14 +54,6 @@ export class Store<T, U> {
       listener();
     });
   }
-
-  private registerSubscriptions(): void {
-    this.subscriptions.forEach((subscription) => {
-      this.addListener(() => {
-        subscription(this.getModel());
-      });
-    });
-  }
 }
 
 export class ComponentStore<T, U> {
@@ -79,13 +64,12 @@ export class ComponentStore<T, U> {
     onRerender,
     children,
   }: {
-    onRerender: (model: T) => U | undefined;
+    onRerender: (model: T) => U;
     children?: React.ReactNode;
   }) {
     const storeRef = React.useRef<Store<T, U>>();
     if (!storeRef.current) {
       storeRef.current = this.createStore();
-      storeRef.current.subscribeTo(onRerender);
     }
 
     // This SHOULD happen after every render.
