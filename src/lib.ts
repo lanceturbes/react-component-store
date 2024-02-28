@@ -76,22 +76,22 @@ export class ComponentStore<T, U> {
   constructor(private createStore: () => Store<T, U>) {}
 
   Provider({
-    onPropsChange,
+    onRerender,
     children,
   }: {
-    onPropsChange: (model: T) => U | undefined;
+    onRerender: (model: T) => U | undefined;
     children?: React.ReactNode;
   }) {
     const storeRef = React.useRef<Store<T, U>>();
     if (!storeRef.current) {
       storeRef.current = this.createStore();
-      storeRef.current.subscribeTo(onPropsChange);
+      storeRef.current.subscribeTo(onRerender);
     }
 
     // This SHOULD happen after every render.
     // That is why there is no dependency array.
     useEffect(() => {
-      const nextMsg = onPropsChange(storeRef.current!!.getModel());
+      const nextMsg = onRerender(storeRef.current!!.getModel());
       if (nextMsg) {
         storeRef.current!!.dispatch(nextMsg);
       }

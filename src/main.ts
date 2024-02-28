@@ -48,8 +48,8 @@ const { Provider, useDispatch, useSelector } =
     }
 
     produceNextMsg(
-      model: CounterModel,
-      msg: CounterMsg
+      _model: CounterModel,
+      _msg: CounterMsg
     ): CounterMsg | undefined {
       return undefined;
     }
@@ -68,7 +68,7 @@ function App() {
     ),
     h(
       Provider,
-      { onPropsChange: () => ({ type: "Sync", payload: count } as const) },
+      { onRerender: () => ({ type: "Sync", payload: count } as const) },
       h(MyCounter)
     )
   );
