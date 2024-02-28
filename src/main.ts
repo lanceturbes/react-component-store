@@ -10,12 +10,16 @@ function MyCounter() {
     "div",
     null,
     h("button", { onClick: () => dispatch({ type: "Decrement" }) }, "-"),
-    h("span", null, model),
+    h("span", null, model.count),
+    h("span", null, `\n${model.other}`),
     h("button", { onClick: () => dispatch({ type: "Increment" }) }, "+")
   );
 }
 
-type CounterModel = number;
+type CounterModel = {
+  count: number;
+  other: number;
+};
 
 type CounterMsg =
   | { type: "Increment" }
@@ -25,7 +29,7 @@ type CounterMsg =
 const { Provider, useDispatch, useSelector } =
   new (class extends ComponentStoreHelper<CounterModel, CounterMsg> {
     provideInitialModel(): CounterModel {
-      return 0;
+      return { count: 0, other: 0 };
     }
 
     provideInitialCmd(): InitialCmd<CounterModel, CounterMsg> | undefined {
@@ -35,11 +39,11 @@ const { Provider, useDispatch, useSelector } =
     produceNewModel(model: CounterModel, msg: CounterMsg): CounterModel {
       switch (msg.type) {
         case "Increment":
-          return model + 1;
+          return { ...model, count: model.count + 1 };
         case "Decrement":
-          return model - 1;
+          return { ...model, count: model.count - 1 };
         case "Sync":
-          return msg.payload;
+          return { ...model, other: msg.payload };
       }
     }
 
@@ -64,9 +68,7 @@ function App() {
     ),
     h(
       Provider,
-      {
-        onPropsChange: (dispatch) => dispatch({ type: "Sync", payload: count }),
-      },
+      { onPropsChange: () => ({ type: "Sync", payload: count } as const) },
       h(MyCounter)
     )
   );

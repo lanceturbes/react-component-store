@@ -16,10 +16,7 @@ export class Store<T, U> {
     init: [T, InitialCmd<T, U>?],
     private produceNewModel: (model: T, msg: U) => T,
     private produceNextMsg: Cmd<T, U> = () => undefined,
-    private subscriptions: ((
-      dispatch: (msg: U) => void,
-      getModel: () => T
-    ) => void)[] = []
+    private subscriptions: ((model: T) => void)[] = []
   ) {
     const [initialModel, initialCmd] = init;
     this.model = initialModel;
@@ -47,11 +44,9 @@ export class Store<T, U> {
     this.notify();
   }
 
-  subscribeTo(
-    subscription: (dispatch: (msg: U) => void, getModel: () => T) => void
-  ) {
+  subscribeTo(subscription: (model: T) => void) {
     this.subscriptions.push(subscription);
-    subscription(this.dispatch.bind(this), this.getModel.bind(this));
+    subscription(this.getModel());
   }
 
   addListener(listener: Listener): Unsubscribe {
@@ -70,7 +65,7 @@ export class Store<T, U> {
   private registerSubscriptions(): void {
     this.subscriptions.forEach((subscription) => {
       this.addListener(() => {
-        subscription(this.dispatch.bind(this), this.getModel.bind(this));
+        subscription(this.getModel());
       });
     });
   }
@@ -84,7 +79,7 @@ export class ComponentStore<T, U> {
     onPropsChange,
     children,
   }: {
-    onPropsChange: (dispatch: (msg: U) => void, getModel: () => T) => void;
+    onPropsChange: (model: T) => U | undefined;
     children?: React.ReactNode;
   }) {
     const storeRef = React.useRef<Store<T, U>>();
@@ -93,12 +88,14 @@ export class ComponentStore<T, U> {
       storeRef.current.subscribeTo(onPropsChange);
     }
 
+    // This SHOULD happen after every render.
+    // That is why there is no dependency array.
     useEffect(() => {
-      onPropsChange(
-        storeRef.current!.dispatch.bind(storeRef.current),
-        storeRef.current!.getModel.bind(storeRef.current)
-      );
-    }, [onPropsChange]);
+      const nextMsg = onPropsChange(storeRef.current!!.getModel());
+      if (nextMsg) {
+        storeRef.current!!.dispatch(nextMsg);
+      }
+    });
 
     return React.createElement(
       this.Context.Provider,
