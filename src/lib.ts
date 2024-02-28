@@ -4,7 +4,7 @@ export type Listener = () => void;
 
 export type Unsubscribe = () => void;
 
-export type InitialCmd<T, U> = (model: T) => U | undefined;
+export type InitialCmd<T, U> = (model: T) => Promise<U | undefined>;
 
 export type Cmd<T, U> = (model: T, msg: U) => Promise<U | undefined>;
 
@@ -22,10 +22,15 @@ export class Store<T, U> {
     if (!initialCmd) {
       return;
     }
-    const initialMsg = initialCmd(initialModel);
-    if (initialMsg) {
-      this.dispatch(initialMsg);
-    }
+    initialCmd(initialModel)
+      .then((msg) => {
+        if (msg) {
+          this.dispatch(msg);
+        }
+      })
+      .catch((e) => {
+        console.error(e);
+      });
   }
 
   getModel(): T {
