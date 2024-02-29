@@ -1,28 +1,23 @@
 import React, { useEffect } from "react";
 
-export type Listener = () => void;
-
-export type Unsubscribe = () => void;
-
-export type InitialCmd<T, U> = (model: T) => Promise<U | undefined>;
-
-export type Cmd<T, U> = (model: T, msg: U) => Promise<U | undefined>;
-
 export class Store<T, U> {
-  private model: T;
-  private listeners: Set<Listener> = new Set();
+  private state: T;
+  private listeners: Set<() => void> = new Set();
 
   constructor(
-    init: [T, InitialCmd<T, U>?],
-    private produceNewModel: (model: T, msg: U) => T,
-    private produceNextMsg: Cmd<T, U> = async () => undefined
+    init: [T, ((state: T) => Promise<U | undefined>)?],
+    private produceNextState: (state: T, action: U) => T,
+    private runEffectAndProduceNextAction: (
+      state: T,
+      action: U,
+    ) => Promise<U | undefined> = async () => undefined,
   ) {
-    const [initialModel, initialCmd] = init;
-    this.model = initialModel;
-    if (!initialCmd) {
+    const [initialState, initialEffect] = init;
+    this.state = initialState;
+    if (!initialEffect) {
       return;
     }
-    initialCmd(initialModel)
+    initialEffect(initialState)
       .then((msg) => {
         if (msg) {
           this.dispatch(msg);
@@ -34,13 +29,13 @@ export class Store<T, U> {
   }
 
   getModel(): T {
-    return this.model;
+    return this.state;
   }
 
-  dispatch(msg: U): void {
-    const newModel = this.produceNewModel(this.model, msg);
-    this.model = newModel;
-    this.produceNextMsg(newModel, msg)
+  dispatch(action: U): void {
+    const nextState = this.produceNextState(this.state, action);
+    this.state = nextState;
+    this.runEffectAndProduceNextAction(nextState, action)
       .then((nextMsg) => {
         if (nextMsg) {
           this.dispatch(nextMsg);
@@ -49,20 +44,47 @@ export class Store<T, U> {
       .catch((e) => {
         console.error(e);
       });
-    this.notify();
+    this.notifySubscribersOfStateChange();
   }
 
-  addListener(listener: Listener): Unsubscribe {
+  subscribeToStateChanges(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  private notify(): void {
+  private notifySubscribersOfStateChange(): void {
     this.listeners.forEach((listener) => {
       listener();
     });
+  }
+}
+
+export abstract class StoreHelper<T, U> {
+  store: Store<T, U>;
+
+  constructor() {
+    this.store = new Store(
+      [this.provideDefaultState(), this.runInitialEffect],
+      this.produceNextState,
+      this.runEffectAndProduceNextAction,
+    );
+  }
+
+  abstract provideDefaultState(): T;
+
+  abstract produceNextState(model: T, msg: U): T;
+
+  async runInitialEffect(_model: T): Promise<U | undefined> {
+    return undefined;
+  }
+
+  async runEffectAndProduceNextAction(
+    _model: T,
+    _msg: U,
+  ): Promise<U | undefined> {
+    return undefined;
   }
 }
 
@@ -74,7 +96,7 @@ export class ComponentStore<T, U> {
     onRerender,
     children,
   }: {
-    onRerender: (model: T) => U;
+    onRerender?: (model: T) => U;
     children?: React.ReactNode;
   }) {
     const storeRef = React.useRef<Store<T, U>>();
@@ -85,7 +107,7 @@ export class ComponentStore<T, U> {
     // This SHOULD happen after every render.
     // That is why there is no dependency array.
     useEffect(() => {
-      const nextMsg = onRerender(storeRef.current!!.getModel());
+      const nextMsg = onRerender?.(storeRef.current!!.getModel());
       if (nextMsg) {
         storeRef.current!!.dispatch(nextMsg);
       }
@@ -94,7 +116,7 @@ export class ComponentStore<T, U> {
     return React.createElement(
       this.Context.Provider,
       { value: storeRef.current },
-      children
+      children,
     );
   }
 
@@ -103,8 +125,9 @@ export class ComponentStore<T, U> {
     if (!store) {
       throw new Error("ComponentStore.Provider not found");
     }
-    return React.useSyncExternalStore(store.addListener.bind(store), () =>
-      selector(store.getModel())
+    return React.useSyncExternalStore(
+      store.subscribeToStateChanges.bind(store),
+      () => selector(store.getModel()),
     );
   }
 
@@ -117,23 +140,6 @@ export class ComponentStore<T, U> {
   }
 }
 
-export abstract class StoreHelper<T, U> {
-  store: Store<T, U>;
-
-  constructor() {
-    this.store = new Store(
-      [this.provideInitialModel(), this.provideInitialCmd],
-      this.produceNewModel,
-      this.produceNextMsg
-    );
-  }
-
-  abstract provideInitialModel(): T;
-  abstract provideInitialCmd(model: T): Promise<U | undefined>;
-  abstract produceNewModel(model: T, msg: U): T;
-  abstract produceNextMsg(model: T, msg: U): Promise<U | undefined>;
-}
-
 export abstract class ComponentStoreHelper<T, U> {
   Provider: ComponentStore<T, U>["Provider"];
   useSelector: ComponentStore<T, U>["useSelector"];
@@ -142,9 +148,9 @@ export abstract class ComponentStoreHelper<T, U> {
   constructor() {
     const store = new ComponentStore(() => {
       return new Store(
-        [this.provideInitialModel(), this.provideInitialCmd],
-        this.produceNewModel,
-        this.produceNextMsg
+        [this.provideDefaultState(), this.runInitialEffect],
+        this.produceNextState,
+        this.runEffectAndProduceNextAction,
       );
     });
     this.Provider = store.Provider.bind(store);
@@ -152,8 +158,18 @@ export abstract class ComponentStoreHelper<T, U> {
     this.useDispatch = store.useDispatch.bind(store);
   }
 
-  abstract provideInitialModel(): T;
-  abstract provideInitialCmd(model: T): Promise<U | undefined>;
-  abstract produceNewModel(model: T, msg: U): T;
-  abstract produceNextMsg(model: T, msg: U): Promise<U | undefined>;
+  abstract provideDefaultState(): T;
+
+  abstract produceNextState(model: T, msg: U): T;
+
+  async runInitialEffect(_model: T): Promise<U | undefined> {
+    return undefined;
+  }
+
+  async runEffectAndProduceNextAction(
+    _model: T,
+    _msg: U,
+  ): Promise<U | undefined> {
+    return undefined;
+  }
 }
