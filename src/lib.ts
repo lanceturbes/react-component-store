@@ -18,9 +18,9 @@ export class Store<T, U> {
       return;
     }
     initialEffect(initialState)
-      .then((msg) => {
-        if (msg) {
-          this.dispatch(msg);
+      .then((action) => {
+        if (action) {
+          this.dispatch(action);
         }
       })
       .catch((e) => {
@@ -74,15 +74,15 @@ export abstract class StoreHelper<T, U> {
 
   abstract provideDefaultState(): T;
 
-  abstract produceNextState(model: T, msg: U): T;
+  abstract produceNextState(state: T, action: U): T;
 
-  async runInitialEffect(_model: T): Promise<U | undefined> {
+  async runInitialEffect(_state: T): Promise<U | undefined> {
     return undefined;
   }
 
   async runEffectAndProduceNextAction(
-    _model: T,
-    _msg: U,
+    _state: T,
+    _action: U,
   ): Promise<U | undefined> {
     return undefined;
   }
@@ -96,7 +96,7 @@ export class ComponentStore<T, U> {
     onRerender,
     children,
   }: {
-    onRerender?: (model: T) => U;
+    onRerender?: (state: T) => U;
     children?: React.ReactNode;
   }) {
     const storeRef = React.useRef<Store<T, U>>();
@@ -120,7 +120,7 @@ export class ComponentStore<T, U> {
     );
   }
 
-  useSelector<V>(selector: (model: T) => V): V {
+  useSelector<V>(selector: (state: T) => V): V {
     const store = React.useContext(this.Context);
     if (!store) {
       throw new Error("ComponentStore.Provider not found");
@@ -131,7 +131,7 @@ export class ComponentStore<T, U> {
     );
   }
 
-  useDispatch(): (msg: U) => void {
+  useDispatch(): (action: U) => void {
     const store = React.useContext(this.Context);
     if (!store) {
       throw new Error("ComponentStore.Provider not found");
@@ -140,6 +140,24 @@ export class ComponentStore<T, U> {
   }
 }
 
+/**
+ * A helper class for creating a `ComponentStore`.
+ *
+ * This class is meant to be implemented by anonymous classes that override its
+ * abstract methods.
+ *
+ * The `ComponentStore` class is a wrapper around the `Store` class that
+ * provides a React context and hooks for using the store in a React
+ * application.
+ *
+ * @template T The type of the store's state.
+ * @template U The type of the store's actions.
+ *
+ * @returns An object with three properties:
+ * - `Provider`: A React component that provides the store to its children.
+ * - `useSelector`: A hook for selecting a value from the store's state.
+ * - `useDispatch`: A hook for dispatching an action to the store.
+ */
 export abstract class ComponentStoreHelper<T, U> {
   Provider: ComponentStore<T, U>["Provider"];
   useSelector: ComponentStore<T, U>["useSelector"];
@@ -158,17 +176,41 @@ export abstract class ComponentStoreHelper<T, U> {
     this.useDispatch = store.useDispatch.bind(store);
   }
 
+  /**
+   * Provides the default/initial state of the store.
+   */
   abstract provideDefaultState(): T;
 
-  abstract produceNextState(model: T, msg: U): T;
+  /**
+   * Produces the next state of the store given the current state and an
+   * action.
+   * @param state
+   * @param action
+   */
+  abstract produceNextState(state: T, action: U): T;
 
-  async runInitialEffect(_model: T): Promise<U | undefined> {
+  /**
+   * Runs a side effect when the store is created, returning an action to be
+   * dispatched to the store on-completion.
+   *
+   * Overriding this method is optional.
+   * @param _state Initial state of the store.
+   */
+  async runInitialEffect(_state: T): Promise<U | undefined> {
     return undefined;
   }
 
+  /**
+   * Determines side effects to run when actions are dispatched to the store,
+   * returning either another action to be dispatched to the store or nothing.
+   *
+   * Overriding this method is optional.
+   * @param _state Current state of the store.
+   * @param _action Message dispatched to the store.
+   */
   async runEffectAndProduceNextAction(
-    _model: T,
-    _msg: U,
+    _state: T,
+    _action: U,
   ): Promise<U | undefined> {
     return undefined;
   }
